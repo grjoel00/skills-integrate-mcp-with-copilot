@@ -3,6 +3,41 @@ document.addEventListener("DOMContentLoaded", () => {
   const activitySelect = document.getElementById("activity");
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
+  const adminLoginBtn = document.getElementById("admin-login-btn");
+  const adminStatus = document.getElementById("admin-status");
+  let adminToken = null;
+
+  function updateAdminStatus() {
+    if (adminToken) {
+      adminStatus.textContent = " (Admin logged in)";
+      adminLoginBtn.style.display = "none";
+    } else {
+      adminStatus.textContent = "";
+      adminLoginBtn.style.display = "inline-block";
+    }
+  }
+
+  adminLoginBtn.addEventListener("click", () => {
+    const username = prompt("Admin username:");
+    const password = prompt("Admin password:");
+    if (!username || !password) return;
+    fetch("/admin/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.token) {
+          adminToken = data.token;
+          updateAdminStatus();
+          alert("Admin login successful");
+        } else {
+          alert(data.detail || "Login failed");
+        }
+      });
+  });
+  updateAdminStatus();
 
   // Function to fetch activities from API
   async function fetchActivities() {
@@ -69,36 +104,32 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Handle unregister functionality
   async function handleUnregister(event) {
+    if (!adminToken) {
+      alert("Admin login required to unregister students.");
+      return;
+    }
     const button = event.target;
     const activity = button.getAttribute("data-activity");
     const email = button.getAttribute("data-email");
 
     try {
       const response = await fetch(
-        `/activities/${encodeURIComponent(
-          activity
-        )}/unregister?email=${encodeURIComponent(email)}`,
+        `/activities/${encodeURIComponent(activity)}/unregister?email=${encodeURIComponent(email)}`,
         {
           method: "DELETE",
+          headers: { "x-admin-token": adminToken },
         }
       );
-
       const result = await response.json();
-
       if (response.ok) {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
-
-        // Refresh activities list to show updated participants
         fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
       }
-
       messageDiv.classList.remove("hidden");
-
-      // Hide message after 5 seconds
       setTimeout(() => {
         messageDiv.classList.add("hidden");
       }, 5000);
@@ -118,32 +149,28 @@ document.addEventListener("DOMContentLoaded", () => {
     const activity = document.getElementById("activity").value;
 
     try {
+      if (!adminToken) {
+        alert("Admin login required to register students.");
+        return;
+      }
       const response = await fetch(
-        `/activities/${encodeURIComponent(
-          activity
-        )}/signup?email=${encodeURIComponent(email)}`,
+        `/activities/${encodeURIComponent(activity)}/signup?email=${encodeURIComponent(email)}`,
         {
           method: "POST",
+          headers: { "x-admin-token": adminToken },
         }
       );
-
       const result = await response.json();
-
       if (response.ok) {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
-
-        // Refresh activities list to show updated participants
         fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
       }
-
       messageDiv.classList.remove("hidden");
-
-      // Hide message after 5 seconds
       setTimeout(() => {
         messageDiv.classList.add("hidden");
       }, 5000);
